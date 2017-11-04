@@ -6,7 +6,7 @@ defmodule EC2Ssh do
   @doc """
   TODO
   """
-  def instances_info do
+  def main(_args) do
     {:ok, %{body: body}} =
       ExAws.EC2.describe_instances
       |> ExAws.request(region: "ap-northeast-1")

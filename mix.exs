@@ -4,6 +4,7 @@ defmodule EC2Ssh.Mixfile do
   def project do
     [
       app: :ec2_ssh,
+      escript: [main_module: EC2Ssh],
       version: "0.1.0",
       elixir: "~> 1.5",
       start_permanent: Mix.env == :prod,
