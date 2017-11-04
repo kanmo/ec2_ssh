@@ -13,7 +13,27 @@ defmodule EC2Ssh do
 
     xml = String.replace(body, ~r/\sxmlns=\".*\"/, "")
     {ok, tuples, _} = :erlsom.simple_form(xml)
-    parse(tuples)
+    parse(tuples) |> select_elms |> format_print
+  end
+
+  def select_elms(instances) do
+    list = instances["DescribeInstancesResponse"]["reservationSet"]["item"]
+    Enum.map(list, fn(i) ->
+      %{state: i["instancesSet"]["item"]["instanceState"]["name"],
+        name: tag_name(i["instancesSet"]["item"]["tagSet"]["item"]),
+        key: i["instancesSet"]["item"]["keyName"],
+        privateIpAddr: i["instancesSet"]["item"]["privateIpAddress"],
+        publicIpAddr: i["instancesSet"]["item"]["ipAddress"]}
+    end)
+  end
+
+  def tag_name(tags) when is_list(tags) do
+    name_tag = Enum.find(tags, fn t -> t["key"] == "Name" end)
+    name_tag["value"]
+  end
+
+  def tag_name(tag) do
+    tag["value"]
   end
 
   def parse([values]) when is_tuple(values) do
@@ -53,29 +73,16 @@ defmodule EC2Ssh do
     |> Map.new
   end
 
-  defp handle_response({:ok, %{body: body}}) do
-    body
-    # |> xpath(~x"//instancesSet/item"l, private_ip_addr: ~x"./privateIpAddress/text()", ip_addr: ~x"./ipAddress/text()")
-    # |> extract_entries
-    # |> handle_response
-
-    # sweet_xml sample
-    # res = body |> xpath(~x"//item/instanceState/name/text()"l)
+  def max_elm_len(instances_info, elm_name) do
+    Enum.filter(instances_info, &(Map.get(&1, elm_name) != nil))
+    |> Enum.map(&(Map.get(&1, elm_name)))
+    |> Enum.max_by(&(String.length(&1)))
   end
 
-  defp handle_response({_, %{body: body}}) do
-    IO.inspect "error response"
-    IO.inspect body
+  def format_print(instances_info) do
+    Enum.map(instances_info, fn(i) ->
+      Enum.join([Map.get(i, :state), Map.get(i, :name), Map.get(i, :privateIpAddr), Map.get(i, :publicIpAddr)], " ")
+    end)
+    |> Enum.each(&(IO.inspect(&1)))
   end
-
-  def extract_entries(records) do
-    [head | _] = records
-    extract_entries([head | []], [])
-  end
-
-  def extract_entries([%{private_ip_addr: private_ip_addr, ip_addr: ip_addr} | tail], res) do
-    extract_entries(tail, [{private_ip_addr, ip_addr} | res])
-  end
-
-  def extract_entries([], res), do: res
 end
