@@ -1,0 +1,10 @@
+#!/bin/bash
+
+line=`ec2_ssh -p $1 | peco | xargs -n 1 echo`
+
+set -- $line
+pemfile=$3
+server_addr=$4
+environment=`echo $pemfile | cut -d"-" -f 1`
+
+ssh -i ~/.ssh/${pemfile}.pem ${environment}-bastion/${server_addr}
