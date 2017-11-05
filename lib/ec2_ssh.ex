@@ -6,25 +6,38 @@ defmodule EC2Ssh do
   @doc """
   TODO
   """
-  def main(_args) do
+  def main(role_name) do
+    config = generate_config(role_name)
+
     {:ok, %{body: body}} =
       ExAws.EC2.describe_instances
-      |> ExAws.request(region: "ap-northeast-1")
+      |> ExAws.request(config)
 
     xml = String.replace(body, ~r/\sxmlns=\".*\"/, "")
     {ok, tuples, _} = :erlsom.simple_form(xml)
     parse(tuples) |> select_elms |> format_print
   end
 
+  def generate_config(role_name) do
+    [region: "ap-northeast-1",
+     access_key_id: {:awscli, role_name, 30},
+     secret_access_key: {:awscli, role_name, 30}]
+  end
+
   def select_elms(instances) do
     list = instances["DescribeInstancesResponse"]["reservationSet"]["item"]
-    Enum.map(list, fn(i) ->
-      %{state: i["instancesSet"]["item"]["instanceState"]["name"],
-        name: tag_name(i["instancesSet"]["item"]["tagSet"]["item"]),
-        key: i["instancesSet"]["item"]["keyName"],
-        privateIpAddr: i["instancesSet"]["item"]["privateIpAddress"],
-        publicIpAddr: i["instancesSet"]["item"]["ipAddress"]}
-    end)
+    if list == nil do
+      IO.inspect("no instances...")
+      []
+    else
+      Enum.map(list, fn(i) ->
+        %{state: i["instancesSet"]["item"]["instanceState"]["name"],
+          name: tag_name(i["instancesSet"]["item"]["tagSet"]["item"]),
+          key: i["instancesSet"]["item"]["keyName"],
+          privateIpAddr: i["instancesSet"]["item"]["privateIpAddress"],
+          publicIpAddr: i["instancesSet"]["item"]["ipAddress"]}
+      end)
+    end
   end
 
   def tag_name(tags) when is_list(tags) do
