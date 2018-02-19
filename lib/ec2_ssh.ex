@@ -6,12 +6,9 @@ defmodule EC2Ssh do
   @doc """
   TODO
   """
-  def main(role_name \\ "default") do
-    config = generate_config(role_name)
-
-    {:ok, %{body: body}} =
-      ExAws.EC2.describe_instances
-      |> ExAws.request(config)
+  def main(_args) do            # TODO role_name option
+    initialize_credentials("default")
+    {:ok, %{body: body}} = ExAws.EC2.describe_instances |> ExAws.request()
 
     xml = String.replace(body, ~r/\sxmlns=\".*\"/, "")
     {ok, tuples, _} = :erlsom.simple_form(xml)
@@ -21,10 +18,10 @@ defmodule EC2Ssh do
     |> format_print
   end
 
-  def generate_config(role_name) do
-    [region: "ap-northeast-1",
-     access_key_id: {:awscli, role_name, 30},
-     secret_access_key: {:awscli, role_name, 30}]
+  def initialize_credentials(role_name) do
+    auth = ExAws.CredentialsIni.security_credentials(role_name)
+    System.put_env("AWS_ACCESS_KEY_ID", auth[:access_key_id])
+    System.put_env("AWS_SECRET_ACCESS_KEY", auth[:secret_access_key])
   end
 
   def filter_instances(instances), do: instances["DescribeInstancesResponse"]["reservationSet"]["item"]
