@@ -6,7 +6,7 @@ defmodule EC2Ssh do
   @doc """
   TODO
   """
-  def main(role_name) do
+  def main(role_name \\ "default") do
     config = generate_config(role_name)
 
     {:ok, %{body: body}} =
@@ -15,7 +15,10 @@ defmodule EC2Ssh do
 
     xml = String.replace(body, ~r/\sxmlns=\".*\"/, "")
     {ok, tuples, _} = :erlsom.simple_form(xml)
-    parse(tuples) |> select_elms |> format_print
+    parse(tuples)
+    |> filter_instances
+    |> select_elms
+    |> format_print
   end
 
   def generate_config(role_name) do
@@ -24,20 +27,37 @@ defmodule EC2Ssh do
      secret_access_key: {:awscli, role_name, 30}]
   end
 
-  def select_elms(instances) do
-    list = instances["DescribeInstancesResponse"]["reservationSet"]["item"]
-    if list == nil do
-      IO.inspect("no instances...")
-      []
-    else
-      Enum.map(list, fn(i) ->
-        %{state: i["instancesSet"]["item"]["instanceState"]["name"],
-          name: tag_name(i["instancesSet"]["item"]["tagSet"]["item"]),
-          key: i["instancesSet"]["item"]["keyName"],
-          privateIpAddr: i["instancesSet"]["item"]["privateIpAddress"],
-          publicIpAddr: i["instancesSet"]["item"]["ipAddress"]}
-      end)
-    end
+  def filter_instances(instances), do: instances["DescribeInstancesResponse"]["reservationSet"]["item"]
+
+  def select_elms(nil) do
+    IO.inspect("no instances...")
+    []
+  end
+
+  def select_elms(item_list) do
+    Enum.map(item_list, &(&1["instancesSet"]["item"]))
+    |>  Enum.map(fn(i) ->
+      to_instance_info(i)
+    end)
+    |> List.flatten
+  end
+
+  def to_instance_info(item) when is_list(item) do
+    Enum.map(item, fn(i) ->
+      %{state: i["instanceState"]["name"],
+        name: tag_name(i["tagSet"]["item"]),
+        key: i["keyName"],
+        privateIpAddr: i["privateIpAddress"],
+        publicIpAddr: i["ipAddress"]}
+    end)
+  end
+
+  def to_instance_info(item) do
+    %{state: item["instanceState"]["name"],
+      name: tag_name(item["tagSet"]["item"]),
+      key: item["keyName"],
+      privateIpAddr: item["privateIpAddress"],
+      publicIpAddr: item["ipAddress"]}
   end
 
   def tag_name(tags) when is_list(tags) do
